@@ -1,0 +1,109 @@
+name: Repeated SOC Login Failures For One Account
+id: daf309ba-8d6c-48d5-ac1b-9dfe4ae3e4e1
+description: |
+  Fires when one account has five or more failed Security Onion Console logins within
+  ten minutes. A mistyped password once or twice is routine; five in ten minutes points
+  to password guessing against that account. Establish which failures triggered it,
+  where they came from, whether the account then logged in successfully, whether the
+  same source tried other accounts, and whether this is normal for the account.
+type: detection
+detection_id: c448c9f6-2979-4ceb-8d26-ab2aaedd92b0
+detection_category: ''
+detection_type: sigma
+contributors:
+- SecurityOnionSolutions
+created: 2026-09-23
+questions:
+- question: Which account failed, how many times, and from where?
+  context: >-
+    The correlation counted these failures for one account within its ten-minute window.
+    The first and last failure bound the burst, and the client address shows where it
+    came from. Backlog true means the failures arrived late and were counted by when
+    they happened.
+  query: |
+    aggregation: false
+    logsource:
+      product: alert
+    detection:
+      selection:
+        document_id|expand: '%document_id%'
+      condition: selection
+    fields:
+      - event_data.user.name
+      - event_data.event_count
+      - event_data.window_start
+      - event_data.@timestamp
+      - event_data.http.request.headers.x-real-ip
+      - event_data.backlog
+- question: Which failed logins triggered this alert?
+  context: >-
+    The individual failures behind the count. Attempts seconds apart suggest a script;
+    attempts spread over minutes suggest a person, possibly the account owner.
+  range: -12m
+  query: |
+    aggregation: false
+    logsource:
+      product: kratos
+      service: audit
+    detection:
+      selection:
+        msg: 'Encountered self-service login error.'
+        user.name|expand: '%User%'
+      condition: selection
+    fields:
+      - user.name
+      - http.request.headers.x-real-ip
+- question: Did the account log in successfully afterwards?
+  context: >-
+    The deciding question. A success soon after the failures, from the same address,
+    is usually a corrected typo. A success from a different address, or after a long
+    run of failures, means a guess may have worked and warrants escalation.
+  range: 1h
+  query: |
+    aggregation: false
+    logsource:
+      product: kratos
+      service: audit
+    detection:
+      selection:
+        msg|contains: 'authenticated successfully'
+        user.name|expand: '%User%'
+      condition: selection
+    fields:
+      - user.name
+      - http.request.headers.x-real-ip
+- question: Did the same source try other accounts?
+  context: >-
+    Failures for several accounts from one address is password spraying rather than
+    one user struggling with a password.
+  range: -1h
+  query: |
+    aggregation: true
+    logsource:
+      product: kratos
+      service: audit
+    detection:
+      selection:
+        msg: 'Encountered self-service login error.'
+        http.request.headers.x-real-ip|expand: '%http.request.headers.x-real-ip%'
+      condition: selection
+    fields:
+      - user.name
+- question: Is this many failures normal for this account?
+  context: >-
+    Regular bursts over the past week may be an automated client with a stale password.
+    A first occurrence, or failures from an address the account has not used before,
+    deserves more attention.
+  range: -7d
+  query: |
+    aggregation: true
+    logsource:
+      product: kratos
+      service: audit
+    detection:
+      selection:
+        msg: 'Encountered self-service login error.'
+        user.name|expand: '%User%'
+      condition: selection
+    fields:
+      - http.request.headers.x-real-ip
