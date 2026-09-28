@@ -26,11 +26,7 @@ questions:
         document_id|expand: '%document_id%'
       condition: selection
     fields:
-      - rule.correlation
       - rule.summary
-      - event_data.window_start
-      - event_data.@timestamp
-      - event_data.backlog
 - question: Has this rule fired before?
   context: >-
     Earlier alerts for the same group suggest recurring, possibly expected, activity.
