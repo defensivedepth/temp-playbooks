@@ -1,0 +1,91 @@
+name: Host Sweeping SMB Across The Network
+id: 9764c1b2-e777-48ed-9d28-752a8c0a2c02
+description: |
+  Fires when one host opens SMB connections to many different hosts within ten minutes.
+  Worms, ransomware and lateral-movement tools sweep SMB this way; so do vulnerability
+  scanners, backup and inventory servers. Establish which hosts were targeted, how many
+  answered, and whether the source followed up on other administrative ports.
+type: detection
+detection_id: 3da902dd-4c3c-4d85-b974-b7c11c4907c0
+detection_category: ''
+detection_type: sigma
+contributors:
+- SecurityOnionSolutions
+created: 2026-09-27
+questions:
+- question: Which host swept SMB, and how many hosts did it reach?
+  context: >-
+    The source address and every destination counted in the window. A known scanner,
+    backup or inventory server here is usually expected; a workstation is not. Backlog
+    true means the connections arrived late and were counted by when they happened.
+  query: |
+    aggregation: false
+    logsource:
+      product: alert
+    detection:
+      selection:
+        document_id|expand: '%document_id%'
+      condition: selection
+    fields:
+      - event_data.source.ip
+      - event_data.value_count
+      - event_data.destination.ip
+      - event_data.window_start
+      - event_data.@timestamp
+      - event_data.backlog
+- question: Which hosts did it connect to on port 445?
+  context: >-
+    The individual connections behind the count. Sequential addresses suggest a blind
+    sweep; a scattered list suggests the source already knew its targets.
+  range: -15m
+  query: |
+    aggregation: true
+    logsource:
+      category: network
+      service: connection
+    detection:
+      selection:
+        source.ip|expand: '%source.ip%'
+        destination.port: 445
+      condition: selection
+    fields:
+      - destination.ip
+- question: How many of those hosts answered?
+  context: >-
+    Established sessions (SF, S1, RSTO) mean SMB was reachable and possibly used. Mostly
+    unanswered attempts (S0, REJ) point to a sweep for open ports rather than access.
+  range: -15m
+  query: |
+    aggregation: true
+    logsource:
+      category: network
+      service: connection
+    detection:
+      selection:
+        source.ip|expand: '%source.ip%'
+        destination.port: 445
+      condition: selection
+    fields:
+      - connection.state
+- question: Did the host then try other administrative ports?
+  context: >-
+    RPC (135), NetBIOS (139), RDP (3389) or WinRM (5985) to the same hosts after the
+    sweep suggests remote execution attempts, not just discovery.
+  range: 1h
+  query: |
+    aggregation: true
+    logsource:
+      category: network
+      service: connection
+    detection:
+      selection:
+        source.ip|expand: '%source.ip%'
+        destination.port:
+          - 135
+          - 139
+          - 3389
+          - 5985
+      condition: selection
+    fields:
+      - destination.ip
+      - destination.port

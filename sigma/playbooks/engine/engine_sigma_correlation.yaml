@@ -1,0 +1,51 @@
+name: Baseline Playbook - Sigma Correlation
+id: e00496f8-1fbc-464e-8680-5bbbba673966
+description: |
+  The baseline playbook for Sigma correlation rules that have no playbook of their own.
+  A correlation alert summarizes many events, so its questions work from the alert itself
+  rather than from a single triggering event.
+type: detection
+detection_id: ''
+detection_category: correlation
+detection_type: sigma
+contributors:
+- SecurityOnionSolutions
+created: 2026-09-27
+questions:
+- question: What did the correlation find, and over what window?
+  context: >-
+    The summary names what was counted and for whom. The window runs from the first to
+    the last counted event. Backlog true means the events arrived late and were counted
+    by when they happened, so the window can lie well before the alert.
+  query: |
+    aggregation: false
+    logsource:
+      product: alert
+    detection:
+      selection:
+        document_id|expand: '%document_id%'
+      condition: selection
+    fields:
+      - rule.correlation
+      - rule.summary
+      - event_data.window_start
+      - event_data.@timestamp
+      - event_data.backlog
+- question: Has this rule fired before?
+  context: >-
+    Earlier alerts for the same group suggest recurring, possibly expected, activity.
+    Alerts for many different groups suggest the threshold is low for this environment.
+    The week is counted around the window, so alerts for events that arrived much later
+    than they happened may fall outside it.
+  range: +/-7d
+  query: |
+    aggregation: false
+    logsource:
+      product: alert
+    detection:
+      selection:
+        rule.uuid|expand: '%rule.uuid%'
+      condition: selection
+    fields:
+      - rule.summary
+      - event_data.backlog

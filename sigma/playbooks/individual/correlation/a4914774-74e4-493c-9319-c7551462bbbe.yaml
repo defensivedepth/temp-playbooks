@@ -1,0 +1,98 @@
+name: One Account Requesting Service Tickets For Many Services
+id: 70fa1602-caea-47a5-a1dc-656fb4dfee3f
+description: |
+  Fires when one account requests Kerberos service tickets for many distinct services
+  within ten minutes. Kerberoasting tools and AD enumeration (BloodHound) do this; so do
+  some management servers. Establish which services were requested and with what
+  encryption, whether this is normal for the account, and whether other accounts are
+  requesting weak tickets too.
+type: detection
+detection_id: a4914774-74e4-493c-9319-c7551462bbbe
+detection_category: ''
+detection_type: sigma
+contributors:
+- SecurityOnionSolutions
+created: 2026-09-27
+questions:
+- question: Which account requested tickets for how many services, and from where?
+  context: >-
+    The account, the source address, and every service counted in the window. RC4
+    encryption (0x17) on user service accounts is the Kerberoasting signature, because
+    those tickets can be cracked offline; AES (0x11, 0x12) is normal. Backlog true means
+    the requests arrived late and were counted by when they happened.
+  query: |
+    aggregation: false
+    logsource:
+      product: alert
+    detection:
+      selection:
+        document_id|expand: '%document_id%'
+      condition: selection
+    fields:
+      - event_data.winlog.event_data.TargetUserName
+      - event_data.source.ip
+      - event_data.value_count
+      - event_data.service.name
+      - event_data.winlog.event_data.TicketEncryptionType
+      - event_data.window_start
+      - event_data.@timestamp
+      - event_data.backlog
+- question: Which service tickets did the account request?
+  context: >-
+    The individual requests behind the count (krbtgt renewals are left out, as in the
+    rule). Services named like user accounts (svc_, sql, http) matter most; computer
+    accounts ending in $ are usually routine.
+  range: -15m
+  query: |
+    aggregation: true
+    logsource:
+      product: windows
+      service: security
+    detection:
+      selection:
+        EventID: 4769
+        TargetUserName|expand: '%winlog.event_data.TargetUserName%'
+        IpAddress|expand: '%source.ip%'
+      filter_krbtgt:
+        ServiceName: krbtgt
+      condition: selection and not filter_krbtgt
+    fields:
+      - ServiceName
+      - TicketEncryptionType
+- question: Is this normal for the account?
+  context: >-
+    A management or monitoring server may request many tickets every day from the same
+    address. A first occurrence, or requests from an address the account has not used
+    before, deserves more attention.
+  range: -7d
+  query: |
+    aggregation: true
+    logsource:
+      product: windows
+      service: security
+    detection:
+      selection:
+        EventID: 4769
+        TargetUserName|expand: '%winlog.event_data.TargetUserName%'
+      condition: selection
+    fields:
+      - IpAddress
+- question: Are other accounts requesting RC4 tickets?
+  context: >-
+    RC4 service tickets are rare in a modern domain. Several accounts requesting them at
+    the same time points to a tool run across accounts, or to a domain that still
+    allows RC4 widely.
+  range: -15m
+  query: |
+    aggregation: true
+    logsource:
+      product: windows
+      service: security
+    detection:
+      selection:
+        EventID: 4769
+        TicketEncryptionType: '0x17'
+      condition: selection
+    fields:
+      - TargetUserName
+      - IpAddress
