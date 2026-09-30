@@ -15,8 +15,7 @@ questions:
 - question: What did the correlation find, and over what window?
   context: >-
     The summary names what was counted and for whom. The window runs from the first to
-    the last counted event. Backlog true means the events arrived late and were counted
-    by when they happened, so the window can lie well before the alert.
+    the last counted event, and lies well before the alert when the events arrived late.
   query: |
     aggregation: false
     logsource:
@@ -44,4 +43,3 @@ questions:
       condition: selection
     fields:
       - rule.summary
-      - event_data.backlog

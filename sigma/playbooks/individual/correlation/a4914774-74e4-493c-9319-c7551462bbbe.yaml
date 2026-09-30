@@ -18,8 +18,7 @@ questions:
   context: >-
     The account, the source address, and every service counted in the window. RC4
     encryption (0x17) on user service accounts is the Kerberoasting signature, because
-    those tickets can be cracked offline; AES (0x11, 0x12) is normal. Backlog true means
-    the requests arrived late and were counted by when they happened.
+    those tickets can be cracked offline; AES (0x11, 0x12) is normal.
   query: |
     aggregation: false
     logsource:
@@ -36,7 +35,6 @@ questions:
       - event_data.winlog.event_data.TicketEncryptionType
       - event_data.window_start
       - event_data.@timestamp
-      - event_data.backlog
 - question: Which service tickets did the account request?
   context: >-
     The individual requests behind the count (krbtgt renewals are left out, as in the

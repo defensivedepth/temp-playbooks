@@ -18,8 +18,7 @@ questions:
   context: >-
     The correlation counted these failures for one account within its ten-minute window.
     The first and last failure bound the burst, and the client address shows where it
-    came from. Backlog true means the failures arrived late and were counted by when
-    they happened.
+    came from.
   query: |
     aggregation: false
     logsource:
@@ -34,7 +33,6 @@ questions:
       - event_data.window_start
       - event_data.@timestamp
       - event_data.http.request.headers.x-real-ip
-      - event_data.backlog
 - question: Which failed logins triggered this alert?
   context: >-
     The individual failures behind the count. Attempts seconds apart suggest a script;

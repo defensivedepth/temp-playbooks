@@ -16,8 +16,7 @@ questions:
 - question: Which host swept SMB, and how many hosts did it reach?
   context: >-
     The source address and every destination counted in the window. A known scanner,
-    backup or inventory server here is usually expected; a workstation is not. Backlog
-    true means the connections arrived late and were counted by when they happened.
+    backup or inventory server here is usually expected; a workstation is not.
   query: |
     aggregation: false
     logsource:
@@ -32,7 +31,6 @@ questions:
       - event_data.destination.ip
       - event_data.window_start
       - event_data.@timestamp
-      - event_data.backlog
 - question: Which hosts did it connect to on port 445?
   context: >-
     The individual connections behind the count. Sequential addresses suggest a blind
